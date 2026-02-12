@@ -275,9 +275,9 @@ export default function App() {
     [userInput]
   );
 
-  // Keyboard handler
-  const handleKeyDown = useCallback(
-    (e) => {
+  // Centralized key processing so mobile synthetic events work reliably
+  const processKey = useCallback(
+    (key, originalEvent) => {
       if (isComplete) return;
       if (!activeCell) return;
 
@@ -285,10 +285,12 @@ export default function App() {
       const cell = grid[row]?.[col];
       if (!cell) return;
 
+      const prevent = () => originalEvent?.preventDefault?.();
+
       // Letter input
-      if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key)) {
-        e.preventDefault();
-        const letter = e.key.toUpperCase();
+      if (key && key.length === 1 && /[a-zA-Z0-9]/.test(key)) {
+        prevent();
+        const letter = key.toUpperCase();
         const newInput = userInput.map((r) => [...r]);
         newInput[row][col] = letter;
         setUserInput(newInput);
@@ -303,7 +305,6 @@ export default function App() {
           setIsComplete(true);
           setShowModal(true);
           updateCompletedClues(newInput);
-          // Fire confetti
           confetti({
             particleCount: 150,
             spread: 80,
@@ -328,11 +329,8 @@ export default function App() {
         if (next) {
           setActiveCell(next);
         } else {
-          // Move to next cell even if filled
           const cells = getClueCells(activeClue, activeDir);
-          const currentIdx = cells.findIndex(
-            (c) => c.row === row && c.col === col
-          );
+          const currentIdx = cells.findIndex((c) => c.row === row && c.col === col);
           if (currentIdx < cells.length - 1) {
             setActiveCell(cells[currentIdx + 1]);
           }
@@ -341,8 +339,8 @@ export default function App() {
       }
 
       // Backspace
-      if (e.key === 'Backspace') {
-        e.preventDefault();
+      if (key === 'Backspace') {
+        prevent();
         if (userInput[row][col]) {
           const newInput = userInput.map((r) => [...r]);
           newInput[row][col] = '';
@@ -354,21 +352,16 @@ export default function App() {
           });
           updateCompletedClues(newInput);
         } else {
-          // Move backward
           const prev = findNextEmptyCell(row, col, activeDir, userInput, false);
           if (prev) {
             setActiveCell(prev);
-            // Also delete that cell
             const newInput = userInput.map((r) => [...r]);
             newInput[prev.row][prev.col] = '';
             setUserInput(newInput);
             updateCompletedClues(newInput);
           } else {
-            // Just move to previous cell
             const cells = getClueCells(activeClue, activeDir);
-            const currentIdx = cells.findIndex(
-              (c) => c.row === row && c.col === col
-            );
+            const currentIdx = cells.findIndex((c) => c.row === row && c.col === col);
             if (currentIdx > 0) {
               setActiveCell(cells[currentIdx - 1]);
               const newInput = userInput.map((r) => [...r]);
@@ -381,30 +374,13 @@ export default function App() {
         return;
       }
 
-      // Delete
-      if (e.key === 'Delete') {
-        e.preventDefault();
-        const newInput = userInput.map((r) => [...r]);
-        newInput[row][col] = '';
-        setUserInput(newInput);
-        setIncorrectCells((prev) => {
-          const next = new Set(prev);
-          next.delete(`${row},${col}`);
-          return next;
-        });
-        updateCompletedClues(newInput);
-        return;
-      }
-
       // Arrow keys
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        e.preventDefault();
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+        prevent();
         let newRow = row;
         let newCol = col;
 
-        // If arrow matches current direction, move within word
-        // If perpendicular, switch direction
-        if (e.key === 'ArrowRight') {
+        if (key === 'ArrowRight') {
           if (activeDir === 'A') {
             newCol = col + 1;
           } else {
@@ -413,7 +389,7 @@ export default function App() {
             if (clue !== null && clue !== undefined) setActiveClue(clue);
             return;
           }
-        } else if (e.key === 'ArrowLeft') {
+        } else if (key === 'ArrowLeft') {
           if (activeDir === 'A') {
             newCol = col - 1;
           } else {
@@ -422,7 +398,7 @@ export default function App() {
             if (clue !== null && clue !== undefined) setActiveClue(clue);
             return;
           }
-        } else if (e.key === 'ArrowDown') {
+        } else if (key === 'ArrowDown') {
           if (activeDir === 'D') {
             newRow = row + 1;
           } else {
@@ -431,7 +407,7 @@ export default function App() {
             if (clue !== null && clue !== undefined) setActiveClue(clue);
             return;
           }
-        } else if (e.key === 'ArrowUp') {
+        } else if (key === 'ArrowUp') {
           if (activeDir === 'D') {
             newRow = row - 1;
           } else {
@@ -442,7 +418,6 @@ export default function App() {
           }
         }
 
-        // Find next valid cell in direction
         while (
           newRow >= 0 &&
           newRow < ROWS &&
@@ -450,10 +425,10 @@ export default function App() {
           newCol < COLS &&
           !grid[newRow]?.[newCol]
         ) {
-          if (e.key === 'ArrowRight') newCol++;
-          else if (e.key === 'ArrowLeft') newCol--;
-          else if (e.key === 'ArrowDown') newRow++;
-          else if (e.key === 'ArrowUp') newRow--;
+          if (key === 'ArrowRight') newCol++;
+          else if (key === 'ArrowLeft') newCol--;
+          else if (key === 'ArrowDown') newRow++;
+          else if (key === 'ArrowUp') newRow--;
         }
 
         if (
@@ -479,27 +454,17 @@ export default function App() {
         return;
       }
 
-      // Tab - switch direction or move to next clue
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          // Previous clue
-          const clues = activeDir === 'A' ? acrossClues : downClues;
-          const idx = clues.findIndex((c) => c.number === activeClue);
-          if (idx > 0) {
-            const prev = clues[idx - 1];
-            setActiveClue(prev.number);
-            setActiveCell({ row: prev.row, col: prev.col });
-          } else {
-            // Switch to other direction's last clue
-            const otherDir = activeDir === 'A' ? 'D' : 'A';
-            const otherClues = otherDir === 'A' ? acrossClues : downClues;
-            if (otherClues.length > 0) {
-              const last = otherClues[otherClues.length - 1];
-              setActiveDir(otherDir);
-              setActiveClue(last.number);
-              setActiveCell({ row: last.row, col: last.col });
-            }
+      // Tab
+      if (key === 'Tab') {
+        prevent();
+        if (originalEvent?.shiftKey) {
+          const otherDir = activeDir === 'A' ? 'D' : 'A';
+          const otherClues = otherDir === 'A' ? acrossClues : downClues;
+          if (otherClues.length > 0) {
+            const last = otherClues[otherClues.length - 1];
+            setActiveDir(otherDir);
+            setActiveClue(last.number);
+            setActiveCell({ row: last.row, col: last.col });
           }
         } else {
           const next = moveToNextClue(activeDir, activeClue);
@@ -509,12 +474,11 @@ export default function App() {
             setActiveCell({ row: next.row, col: next.col });
           }
         }
-        return;
       }
 
       // Space - toggle direction
-      if (e.key === ' ') {
-        e.preventDefault();
+      if (key === ' ') {
+        prevent();
         const newDir = activeDir === 'A' ? 'D' : 'A';
         const clue = getClueForCell(row, col, newDir);
         if (clue !== null && clue !== undefined) {
@@ -536,6 +500,8 @@ export default function App() {
       updateCompletedClues,
     ]
   );
+
+  const handleKeyDown = useCallback((e) => processKey(e.key, e), [processKey]);
 
   // Mobile input handler
   const handleMobileInput = useCallback(
@@ -799,6 +765,14 @@ export default function App() {
                 margin: 0,
               }}
               onInput={handleMobileInput}
+              onKeyDown={(e) => {
+                if (!e.key) return;
+                // Forward key presses (including Backspace) to main processor
+                processKey(e.key, e);
+                e.preventDefault();
+                // clear value so next input is fresh
+                e.target.value = '';
+              }}
             />
           </div>
         </div>
