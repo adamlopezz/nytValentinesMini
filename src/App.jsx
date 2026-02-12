@@ -540,19 +540,31 @@ export default function App() {
   // Mobile input handler
   const handleMobileInput = useCallback(
     (e) => {
-      const inputValue = e.target.value;
-      if (!inputValue) return;
-      
-      const lastChar = inputValue[inputValue.length - 1];
-      if (/[a-zA-Z0-9]/.test(lastChar)) {
-        const syntheticEvent = {
-          key: lastChar,
-          preventDefault: () => {},
-        };
+      const ne = e.nativeEvent || {};
+
+      // Handle deletions (Backspace) from mobile keyboards
+      if (ne.inputType === 'deleteContentBackward' || ne.inputType === 'deleteByCut') {
+        const syntheticEvent = { key: 'Backspace', preventDefault: () => {} };
+        handleKeyDown(syntheticEvent);
+        e.target.value = '';
+        return;
+      }
+
+      // Handle inserted characters
+      const data = ne.data ?? e.target.value;
+      if (!data) {
+        e.target.value = '';
+        return;
+      }
+
+      // If multiple characters pasted, process the last one
+      const char = typeof data === 'string' ? data[data.length - 1] : null;
+      if (char && /[a-zA-Z0-9]/.test(char)) {
+        const syntheticEvent = { key: char, preventDefault: () => {} };
         handleKeyDown(syntheticEvent);
       }
-      
-      // Clear the input
+
+      // Clear the input so next key press is captured fresh
       e.target.value = '';
     },
     [handleKeyDown]
@@ -764,7 +776,7 @@ export default function App() {
               onKeyDown={handleKeyDown}
             />
 
-            {/* Hidden input for mobile keyboards */}
+            {/* Hidden input for mobile keyboards (caret hidden) */}
             <input
               ref={hiddenInputRef}
               type="text"
@@ -772,7 +784,20 @@ export default function App() {
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
-              className="absolute opacity-0 w-0 h-0 pointer-events-none"
+              aria-hidden={true}
+              style={{
+                position: 'absolute',
+                width: '1px',
+                height: '1px',
+                opacity: 0,
+                color: 'transparent',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                caretColor: 'transparent',
+                padding: 0,
+                margin: 0,
+              }}
               onInput={handleMobileInput}
             />
           </div>
