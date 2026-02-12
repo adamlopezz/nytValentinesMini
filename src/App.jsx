@@ -43,6 +43,7 @@ function saveState(state) {
 
 export default function App() {
   const grid = useRef(buildGrid()).current;
+  const hiddenInputRef = useRef(null);
 
   // Find first across clue cell
   const findFirstCell = () => {
@@ -109,6 +110,13 @@ export default function App() {
     }, 1000);
     return () => clearInterval(interval);
   }, [isComplete, isPaused, showLanding]);
+
+  // Focus hidden input when active cell changes
+  useEffect(() => {
+    if (activeCell && hiddenInputRef.current) {
+      hiddenInputRef.current.focus();
+    }
+  }, [activeCell]);
 
   // Save state
   useEffect(() => {
@@ -529,6 +537,27 @@ export default function App() {
     ]
   );
 
+  // Mobile input handler
+  const handleMobileInput = useCallback(
+    (e) => {
+      const inputValue = e.target.value;
+      if (!inputValue) return;
+      
+      const lastChar = inputValue[inputValue.length - 1];
+      if (/[a-zA-Z0-9]/.test(lastChar)) {
+        const syntheticEvent = {
+          key: lastChar,
+          preventDefault: () => {},
+        };
+        handleKeyDown(syntheticEvent);
+      }
+      
+      // Clear the input
+      e.target.value = '';
+    },
+    [handleKeyDown]
+  );
+
   // Check handler
   const handleCheck = useCallback(
     (scope) => {
@@ -661,6 +690,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
+      {/* Hidden input for mobile keyboard support */}
+      <input
+        ref={hiddenInputRef}
+        type="text"
+        inputMode="text"
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck="false"
+        className="absolute -left-full"
+        onInput={handleMobileInput}
+        onChange={(e) => e.target.value = ''}
+      />
+
       {/* Landing overlay */}
       {showLanding && (
         <LandingOverlay onPlay={() => setShowLanding(false)} />
@@ -708,18 +750,32 @@ export default function App() {
 
         {/* Grid */}
         <div className="flex justify-center mb-6">
-          <CrosswordGrid
-            grid={grid}
-            userInput={userInput}
-            activeCell={activeCell}
-            activeDir={activeDir}
-            activeClue={activeClue}
-            incorrectCells={incorrectCells}
-            revealedCells={revealedCells}
-            isComplete={isComplete}
-            onCellClick={handleCellClick}
-            onKeyDown={handleKeyDown}
-          />
+          <div className="relative">
+            <CrosswordGrid
+              grid={grid}
+              userInput={userInput}
+              activeCell={activeCell}
+              activeDir={activeDir}
+              activeClue={activeClue}
+              incorrectCells={incorrectCells}
+              revealedCells={revealedCells}
+              isComplete={isComplete}
+              onCellClick={handleCellClick}
+              onKeyDown={handleKeyDown}
+            />
+
+            {/* Hidden input for mobile keyboards */}
+            <input
+              ref={hiddenInputRef}
+              type="text"
+              inputMode="latin"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="absolute opacity-0 w-0 h-0 pointer-events-none"
+              onInput={handleMobileInput}
+            />
+          </div>
         </div>
 
         {/* Clues */}
