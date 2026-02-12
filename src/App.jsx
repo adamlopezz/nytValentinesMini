@@ -101,6 +101,7 @@ export default function App() {
   const [completedClues, setCompletedClues] = useState(() => {
     return new Set(savedRef.current?.completedClues || []);
   });
+  
 
   // Timer
   useEffect(() => {
@@ -117,6 +118,8 @@ export default function App() {
       hiddenInputRef.current.focus();
     }
   }, [activeCell]);
+
+  
 
   // Save state
   useEffect(() => {
@@ -215,6 +218,27 @@ export default function App() {
       if (otherClues.length > 0) {
         const next = otherClues[0];
         return { clue: next.number, row: next.row, col: next.col, dir: otherDir };
+      }
+      return null;
+    },
+    []
+  );
+
+  // Move to previous clue
+  const moveToPrevClue = useCallback(
+    (currentDir, currentClue) => {
+      const clues = currentDir === 'A' ? acrossClues : downClues;
+      const idx = clues.findIndex((c) => c.number === currentClue);
+      if (idx > 0) {
+        const prev = clues[idx - 1];
+        return { clue: prev.number, row: prev.row, col: prev.col, dir: currentDir };
+      }
+      // Switch direction to the other list and take the last clue
+      const otherDir = currentDir === 'A' ? 'D' : 'A';
+      const otherClues = otherDir === 'A' ? acrossClues : downClues;
+      if (otherClues.length > 0) {
+        const prev = otherClues[otherClues.length - 1];
+        return { clue: prev.number, row: prev.row, col: prev.col, dir: otherDir };
       }
       return null;
     },
@@ -742,6 +766,38 @@ export default function App() {
               onKeyDown={handleKeyDown}
             />
 
+            {/* Mobile word navigation (small screens only) */}
+            <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 flex gap-3 md:hidden">
+              <button
+                aria-label="Previous word"
+                className="px-3 py-1 bg-[#f0f0f0] rounded shadow text-sm"
+                onClick={() => {
+                  const prev = moveToPrevClue(activeDir, activeClue);
+                  if (prev) {
+                    setActiveDir(prev.dir);
+                    setActiveClue(prev.clue);
+                    setActiveCell({ row: prev.row, col: prev.col });
+                  }
+                }}
+              >
+                ◀
+              </button>
+              <button
+                aria-label="Next word"
+                className="px-3 py-1 bg-[#f0f0f0] rounded shadow text-sm"
+                onClick={() => {
+                  const next = moveToNextClue(activeDir, activeClue);
+                  if (next) {
+                    setActiveDir(next.dir);
+                    setActiveClue(next.clue);
+                    setActiveCell({ row: next.row, col: next.col });
+                  }
+                }}
+              >
+                ▶
+              </button>
+            </div>
+
             {/* Hidden input for mobile keyboards (caret hidden) */}
             <input
               ref={hiddenInputRef}
@@ -804,6 +860,8 @@ export default function App() {
       {showModal && (
         <CompletionModal seconds={seconds} onClose={() => setShowModal(false)} />
       )}
+
+      
     </div>
   );
 }
